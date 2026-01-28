@@ -1,0 +1,179 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Org {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(225)
+  key       String   @db.VarChar(225)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  projects Project[] @relation("OrgsProject")
+  users    User[]    @relation("orgUser")
+
+  @@unique([key])
+  @@index([key])
+}
+
+enum Role {
+  Admin
+  Manager
+  Member
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(225)
+  email     String   @unique
+  role      Role     @default(Member)
+  password  String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  orgId String
+
+  orgs Org @relation("orgUser", fields: [orgId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  projects Project[] @relation("createdProjects")
+
+  taskCreated     Task[]     @relation("taskCreatedBy")
+  taskAssigned    Task[]     @relation("taskAssignedTo")
+  commentsUser    Comments[] @relation("userComments")
+  requestAssigned Request[]  @relation("requestAssignedTo")
+  requestCreated  Request[]  @relation("requestCreatedBy")
+  requestApprover Request[]  @relation("requestApprovedBy")
+}
+
+enum ProjectStatus {
+  Active
+  Archived
+  Backlog
+}
+
+model Project {
+  id          String         @id @default(uuid())
+  name        String         @db.VarChar(225)
+  description String?        @db.Text
+  status      ProjectStatus? @default(Backlog)
+
+  orgId     String
+  createdBy String
+
+  orgs  Org  @relation("OrgsProject", fields: [orgId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  users User @relation("createdProjects", fields: [createdBy], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  tasks Task[] @relation("tasksCreatedInProject")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+enum Priority {
+  High
+  Medium
+  Low
+}
+
+enum Stage {
+  Todo
+  Inprogress
+  AwaitingDeployment
+  DeployedReadyToTest
+  Done
+}
+
+enum Type {
+  Story
+  Bug
+  TechDeb
+  Task
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  name        String   @db.VarChar(225)
+  type        Type     @default(Story)
+  pointers    Int
+  priority    Priority @default(Medium)
+  description String?  @db.Text
+  stage       Stage    @default(Todo)
+  startTime   DateTime
+  endTime     DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  projectId  String
+  createdBy  String
+  assignedTo String
+
+  projects Project @relation("tasksCreatedInProject", fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdusers  User @relation("taskCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  assginedUsers User @relation("taskAssignedTo", fields: [assignedTo], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  requests Request[]  @relation("requestedTask")
+  comments Comments[] @relation("commentsAddedToTask")
+}
+
+model Comments {
+  id          String   @id @default(uuid())
+  description String   @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  taskId String
+  userId String
+
+  tasks Task @relation("commentsAddedToTask", fields: [taskId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  users User @relation("userComments", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
+enum RequestStatus {
+  Pending
+  Approved
+  Rejected
+}
+
+model Request {
+  id          String @id @default(uuid())
+  name        String @db.VarChar(225)
+  description String @db.Text
+
+  type      Type?
+  pointers  Int?
+  startTime DateTime?
+  endTime   DateTime?
+
+  requestStatus RequestStatus @default(Pending)
+
+  approvedRejectedAt DateTime?
+  rejectedReason     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  taskId     String
+  assignedTo String
+  createdBy  String
+  approvedBy String?
+
+  tasks Task @relation("requestedTask", fields: [taskId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  assigns User @relation("requestAssignedTo", fields: [assignedTo], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  approvers User? @relation("requestApprovedBy", fields: [approvedBy], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  creators User @relation("requestCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
